@@ -56,17 +56,20 @@ func (s *Service) Enroll(ctx context.Context, input domain.NodeCreateInput) (dom
 	return node, err
 }
 
-func (s *Service) Get(ctx context.Context, nodeID string) (domain.ResolverNode, error) {
-	var node domain.ResolverNode
+func (s *Service) Get(ctx context.Context, nodeID string) (domain.NodeView, error) {
+	var view domain.NodeView
 	err := s.store.Read(ctx, func(state *domain.State) error {
 		found, ok := state.Nodes[nodeID]
 		if !ok {
 			return domain.NotFound("node", nodeID)
 		}
-		node = found
+		view = domain.NodeView{
+			ResolverNode: found,
+			ActiveLease:  claimedLeasesByNode(state)[nodeID],
+		}
 		return nil
 	})
-	return node, err
+	return view, err
 }
 
 func (s *Service) List(
@@ -87,6 +90,7 @@ func (s *Service) List(
 	}
 	var page domain.NodePage
 	err = s.store.Read(ctx, func(state *domain.State) error {
+		activeLeases := claimedLeasesByNode(state)
 		items := make([]domain.ResolverNode, 0, len(state.Nodes))
 		for _, node := range state.Nodes {
 			if stateFilter != "" && node.State != stateFilter {
@@ -105,12 +109,35 @@ func (s *Service) List(
 		})
 		page.Meta.Limit = limit
 		if len(items) > limit {
-			page.Items = append(page.Items, items[:limit]...)
 			page.Meta.NextCursor = platform.EncodeCursor(items[limit-1].ID)
-			return nil
+			items = items[:limit]
 		}
-		page.Items = append(page.Items, items...)
+		for _, node := range items {
+			page.Items = append(page.Items, domain.NodeView{
+				ResolverNode: node,
+				ActiveLease:  activeLeases[node.ID],
+			})
+		}
 		return nil
 	})
 	return page, err
+}
+
+// claimedLeasesByNode indexes every claimed lease by its node within the
+// current snapshot. Claimed leases are reported even when past their expiry
+// so a leased node never appears without its occupying lease; the sweeper
+// is responsible for expiring them.
+func claimedLeasesByNode(state *domain.State) map[string]*domain.NodeLeaseSummary {
+	summaries := make(map[string]*domain.NodeLeaseSummary, len(state.Leases))
+	for _, lease := range state.Leases {
+		if lease.State != domain.LeaseClaimed {
+			continue
+		}
+		summaries[lease.NodeID] = &domain.NodeLeaseSummary{
+			LeaseID:   lease.ID,
+			PlanID:    lease.PlanID,
+			ExpiresAt: lease.ExpiresAt,
+		}
+	}
+	return summaries
 }

@@ -48,6 +48,8 @@ Zone Rollout Control 是面向 DNS 运维人员的 Go HTTP 控制面。它把区
 - `state`：`ready`、`leased` 或 `quarantined`。
 - `version`、`created_at`、`updated_at`。
 
+节点读取在同一快照中附带 `active_lease` 投影：当前 `claimed` 租约的 `lease_id`、`plan_id` 和 `expires_at`。没有活动租约的节点该字段为 `null`。状态、区域和分页筛选只决定节点集合，不改变投影内容。
+
 ### NodeLease
 
 计划对某个解析节点的有期限占用。

@@ -32,6 +32,16 @@ func runProbeIngestion() error {
 	if !first.Success || first.ObservedSerial != revision.Serial {
 		return ensure(false, "probe values were not preserved")
 	}
+	page, err := listNodes(harness, "state=ready&region=central")
+	if err != nil {
+		return err
+	}
+	if len(page.Items) != 1 {
+		return ensure(false, "reported lease must return the node to ready")
+	}
+	if page.Items[0].ActiveLease != nil {
+		return ensure(false, "ready node must not show an active lease")
+	}
 	replay, err := submitProbe(harness, leaseID, "probe-request-0001", true, revision.Serial, 12)
 	if err != nil {
 		return err

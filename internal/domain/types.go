@@ -83,6 +83,21 @@ type ResolverNode struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// NodeLeaseSummary identifies the lease currently occupying a node.
+type NodeLeaseSummary struct {
+	LeaseID   string    `json:"lease_id"`
+	PlanID    string    `json:"plan_id"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// NodeView couples a resolver node with the active lease observed in the
+// same state snapshot. ActiveLease is null when no claimed lease occupies
+// the node.
+type NodeView struct {
+	ResolverNode
+	ActiveLease *NodeLeaseSummary `json:"active_lease"`
+}
+
 type NodeLease struct {
 	ID           string     `json:"id"`
 	PlanID       string     `json:"plan_id"`
@@ -168,6 +183,6 @@ type PlanPage struct {
 }
 
 type NodePage struct {
-	Items []ResolverNode `json:"items"`
-	Meta  PageMeta       `json:"meta"`
+	Items []NodeView `json:"items"`
+	Meta  PageMeta   `json:"meta"`
 }
