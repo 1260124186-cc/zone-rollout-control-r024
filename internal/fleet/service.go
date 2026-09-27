@@ -87,7 +87,20 @@ func (s *Service) List(
 	}
 	var page domain.NodePage
 	err = s.store.Read(ctx, func(state *domain.State) error {
-		items := make([]domain.ResolverNode, 0, len(state.Nodes))
+		// 在同一个快照事务内收集活动租约，保证节点状态与租约占用来自同一时刻：
+		// 状态、区域和分页只决定节点集合，活动租约仅作为同一快照的附带信息。
+		activeByNode := make(map[string]domain.NodeLease)
+		for _, lease := range state.Leases {
+			if lease.State != domain.LeaseClaimed {
+				continue
+			}
+			current, exists := activeByNode[lease.NodeID]
+			if !exists || lease.ClaimedAt.Before(current.ClaimedAt) ||
+				(lease.ClaimedAt.Equal(current.ClaimedAt) && lease.ID < current.ID) {
+				activeByNode[lease.NodeID] = lease
+			}
+		}
+		items := make([]domain.NodeView, 0, len(state.Nodes))
 		for _, node := range state.Nodes {
 			if stateFilter != "" && node.State != stateFilter {
 				continue
@@ -98,7 +111,19 @@ func (s *Service) List(
 			if after != "" && node.ID <= after {
 				continue
 			}
-			items = append(items, node)
+			view := domain.NodeView{ResolverNode: node}
+			lease, hasLease := activeByNode[node.ID]
+			// 仅当节点确实处于 leased 且同一快照中存在与其配对的 claimed
+			// 租约时才附带占用信息，避免并发切换时出现 leased 无租约或
+			// ready 仍显示活动占用的矛盾组合。
+			if node.State == domain.NodeLeased && hasLease && lease.NodeID == node.ID {
+				view.ActiveLease = &domain.NodeActiveLease{
+					ID:        lease.ID,
+					PlanID:    lease.PlanID,
+					ExpiresAt: lease.ExpiresAt,
+				}
+			}
+			items = append(items, view)
 		}
 		sort.Slice(items, func(i, j int) bool {
 			return items[i].ID < items[j].ID

@@ -166,7 +166,7 @@ curl -sS -X PATCH http://127.0.0.1:8090/v1/plans/<plan_id>/assessments \
 | --- | --- | --- |
 | `GET` | `/healthz` | 进程健康检查 |
 | `PUT` | `/v1/nodes` | 登记解析节点 |
-| `GET` | `/v1/nodes` | 按状态和区域分页查询节点 |
+| `GET` | `/v1/nodes` | 按状态和区域分页查询节点，同一快照附带活动租约 |
 | `PUT` | `/v1/plans` | 创建计划草稿 |
 | `GET` | `/v1/plans` | 按状态分页查询计划 |
 | `GET` | `/v1/plans/{id}` | 查询计划 |
@@ -186,6 +186,7 @@ curl -sS -X PATCH http://127.0.0.1:8090/v1/plans/<plan_id>/assessments \
 - A、AAAA、CNAME 条目在写入前规范化并稳定排序，重复条目直接拒绝。
 - 节点按 `ready -> leased -> ready` 变化，隔离节点不会被选中。
 - 一个节点同一时刻最多有一个 `claimed` 租约。
+- `GET /v1/nodes` 的每个节点在原字段外附带 `active_lease`：仅 `leased` 节点非空，内容为当前 `claimed` 租约的 `id`、`plan_id` 和 `expires_at`；`ready`、`quarantined` 节点该字段为 `null`。`state`、`region`、`limit` 和 `cursor` 仍只决定节点集合，不影响附带内容。
 - 相同请求键和相同内容可安全重放；同键异载荷返回 `idempotency_conflict`。
 - 一致性判定综合节点覆盖率、序列号、成功比例和最大延迟，返回 `consistent` 或 `review_required`。
 - 所有校验和冲突在快照替换前返回，不留下部分状态。

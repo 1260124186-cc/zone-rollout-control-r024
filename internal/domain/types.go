@@ -83,6 +83,20 @@ type ResolverNode struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// NodeActiveLease 是节点列表中随同一快照附带的当前活动租约摘要。
+// 仅当节点存在状态为 claimed 的活动租约时填充；否则整个对象为 null。
+type NodeActiveLease struct {
+	ID        string    `json:"id"`
+	PlanID    string    `json:"plan_id"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// NodeView 在不改变原节点字段的前提下附带当前活动租约。
+type NodeView struct {
+	ResolverNode
+	ActiveLease *NodeActiveLease `json:"active_lease"`
+}
+
 type NodeLease struct {
 	ID           string     `json:"id"`
 	PlanID       string     `json:"plan_id"`
@@ -168,6 +182,6 @@ type PlanPage struct {
 }
 
 type NodePage struct {
-	Items []ResolverNode `json:"items"`
-	Meta  PageMeta       `json:"meta"`
+	Items []NodeView `json:"items"`
+	Meta  PageMeta   `json:"meta"`
 }
